@@ -1,0 +1,300 @@
+---
+title: "Case's Poll"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(Kendall)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(GGally)
+library(reshape2)
+```
+
+```{r load_data}
+fullDF <- read.csv("poll_stats.csv")
+
+paredDF <- fullDF[complete.cases(fullDF),]
+
+set.seed(0)
+
+exploreSize <- floor(nrow(paredDF)/2)
+
+exploreRows <- sample(seq_len(nrow(paredDF)), size = exploreSize)
+
+exploreDF <- paredDF[exploreRows,]
+verifyDF <- paredDF[-exploreRows,]
+```
+
+Standard procedure: load in data, split into (equivalent of a) training and testing set.
+
+Removing rows with NaNs gets rid of only 3% of the data, and eyeballing it suggests they don't convey any particularly illuminating info; ergo, they go.
+
+```{r feature_engineering}
+
+originalFeatureList <- c("understand","nonviolence","learn.teach","win.win","mindfulness","crowds")
+
+exploreDF["total"] <- apply(exploreDF[originalFeatureList],1,sum)
+  
+ # exploreDF["understand"] + exploreDF["nonviolence"] + exploreDF["learn.teach"] + exploreDF["win.win"] + exploreDF["mindfulness"] + exploreDF["crowds"]
+
+exploreDF["positivity"] <- exploreDF["total"]/6
+
+exploreDF["max"] <- apply(exploreDF[originalFeatureList],1,max)
+exploreDF["min"] <- apply(exploreDF[originalFeatureList],1,min)
+exploreDF["range"] <- exploreDF["max"] - exploreDF["min"]
+
+```
+
+How does general positivity correlate with any of these variables? Now we can find out!
+
+```{r univariate}
+qplot(bins=5, x=exploreDF["understand"], data=exploreDF["understand"])
+qplot(bins=5, x=exploreDF["nonviolence"], data=exploreDF["nonviolence"])
+qplot(bins=5, x=exploreDF["learn.teach"], data=exploreDF["learn.teach"])
+qplot(bins=5, x=exploreDF["win.win"], data=exploreDF["win.win"])
+qplot(bins=5, x=exploreDF["mindfulness"], data=exploreDF["mindfulness"])
+qplot(bins=5, x=exploreDF["crowds"], data=exploreDF["crowds"])
+
+min(exploreDF["total"])
+
+qplot(bins=19, x=exploreDF["positivity"], data=exploreDF["positivity"])
+
+sum(exploreDF["understand"])/nrow(exploreDF)
+sum(exploreDF["nonviolence"])/nrow(exploreDF)
+sum(exploreDF["learn.teach"])/nrow(exploreDF)
+sum(exploreDF["win.win"])/nrow(exploreDF)
+sum(exploreDF["mindfulness"])/nrow(exploreDF)
+sum(exploreDF["crowds"])/nrow(exploreDF)
+```
+```{r bivariate}
+
+ggcorr(exploreDF[originalFeatureList],label=TRUE, size=3.4,label_round=3)
+
+ggcorr(exploreDF[c(originalFeatureList, "positivity", "range")],label=TRUE, size=3.4,label_round=3)
+
+ggplot(aes(x=crowds, y=learn.teach),
+       data=exploreDF)+
+  geom_count()
+
+ggplot(aes(x=crowds, y=understand),
+       data=exploreDF)+
+  geom_count()
+
+with(exploreDF,
+     wilcox.test(crowds-understand,
+            alternative="greater", mu=0))
+
+with(exploreDF,
+     cor.test(crowds,
+              learn.teach,
+              method="kendall",
+              alternative="less"))
+
+with(exploreDF,
+     cor.test(crowds,
+              learn.teach,
+              alternative="less"))
+
+```
+
+```{r feature_engineering_II}
+
+exploreDFII <-exploreDF
+
+exploreDFII["understand"] <-exploreDFII["understand"]-exploreDFII["positivity"]
+exploreDFII["nonviolence"] <-exploreDFII["nonviolence"]-exploreDFII["positivity"]
+exploreDFII["learn.teach"] <-exploreDFII["learn.teach"]-exploreDFII["positivity"]
+exploreDFII["win.win"] <-exploreDFII["win.win"]-exploreDFII["positivity"]
+exploreDFII["mindfulness"] <-exploreDFII["mindfulness"]-exploreDFII["positivity"]
+exploreDFII["crowds"] <-exploreDFII["crowds"]-exploreDFII["positivity"]
+
+```
+
+```{r univariate_II}
+
+qplot(bins=10, x=exploreDFII["understand"], data=exploreDFII["understand"])
+qplot(bins=10, x=exploreDFII["nonviolence"], data=exploreDFII["nonviolence"])
+qplot(bins=10, x=exploreDFII["learn.teach"], data=exploreDFII["learn.teach"])
+qplot(bins=10, x=exploreDFII["win.win"], data=exploreDFII["win.win"])
+qplot(bins=10, x=exploreDFII["mindfulness"], data=exploreDFII["mindfulness"])
+qplot(bins=32, x=exploreDFII["crowds"], data=exploreDFII["crowds"])
+
+max(exploreDFII["crowds"])
+min(exploreDFII["crowds"])
+
+```
+
+```{r bivariate_II}
+
+ggcorr(exploreDFII[originalFeatureList],label=TRUE, size=3.4,label_round=2)
+
+ggcorr(exploreDFII[c(originalFeatureList, "positivity", "range")],label=TRUE, size=3.4,label_round=2)
+
+with(exploreDFII,
+     cor.test(positivity,
+              mindfulness,
+              alternative="greater"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              nonviolence,
+              alternative="greater"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              win.win,
+              alternative="greater"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              learn.teach,
+              alternative="less"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              crowds,
+              alternative="less"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              understand,
+              alternative="less"))
+
+
+
+with(exploreDFII,
+     cor.test(positivity,
+              mindfulness,
+              method = "kendall",
+              alternative="greater"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              nonviolence,
+              method = "kendall",
+              alternative="greater"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              win.win,
+              method = "kendall",
+              alternative="greater"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              learn.teach,
+              method = "kendall",
+              alternative="less"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              crowds,
+              method = "kendall",
+              alternative="less"))
+
+with(exploreDFII,
+     cor.test(positivity,
+              understand,
+              method = "kendall",
+              alternative="less",
+              exact=TRUE))
+
+with(exploreDFII,
+     Kendall(positivity,nonviolence))
+
+Kendall(exploreDFII$positivity, exploreDFII$understand)
+```
+
+```{r feature_engineering_III}
+
+exploreDFIII <- exploreDFII
+
+qplot(bins=5, x=exploreDFIII["range"], data=exploreDFIII["range"])
+
+exploreDFIII <-subset(exploreDFIII, exploreDFIII$range>0)
+
+exploreDFIII["understand"] <-exploreDFIII["understand"]/exploreDFIII["range"]
+exploreDFIII["nonviolence"] <-exploreDFIII["nonviolence"]/exploreDFIII["range"]
+exploreDFIII["learn.teach"] <-exploreDFIII["learn.teach"]/exploreDFIII["range"]
+exploreDFIII["win.win"] <-exploreDFIII["win.win"]/exploreDFIII["range"]
+exploreDFIII["mindfulness"] <-exploreDFIII["mindfulness"]/exploreDFIII["range"]
+exploreDFIII["crowds"] <-exploreDFIII["crowds"]/exploreDFIII["range"]
+
+```
+
+```{r univariate_III}
+
+qplot(bins=1000, x=exploreDFIII["understand"], data=exploreDFIII["understand"])
+
+qplot(bins=5, x=exploreDFIII["nonviolence"], data=exploreDFIII["nonviolence"])
+qplot(bins=5, x=exploreDFIII["learn.teach"], data=exploreDFIII["learn.teach"])
+qplot(bins=5, x=exploreDFIII["win.win"], data=exploreDFIII["win.win"])
+qplot(bins=5, x=exploreDFIII["mindfulness"], data=exploreDFIII["mindfulness"])
+qplot(bins=5, x=exploreDFIII["crowds"], data=exploreDFIII["crowds"])
+
+sum(exploreDFIII["understand"])/nrow(exploreDFIII)
+sum(exploreDFIII["nonviolence"])/nrow(exploreDFIII)
+sum(exploreDFIII["learn.teach"])/nrow(exploreDFIII)
+sum(exploreDFIII["win.win"])/nrow(exploreDFIII)
+sum(exploreDFIII["mindfulness"])/nrow(exploreDFIII)
+sum(exploreDFIII["crowds"])/nrow(exploreDFIII)
+
+```
+
+```{r bivariate_III}
+
+with(exploreDFIII,
+     wilcox.test(crowds-learn.teach,
+            alternative="greater", mu=0))
+
+with(exploreDFIII,
+     wilcox.test(learn.teach-understand,
+            alternative="greater", mu=0))
+
+with(exploreDFIII,
+     wilcox.test(learn.teach-nonviolence,
+            alternative="greater", mu=0))
+
+ggcorr(exploreDFIII[c(originalFeatureList, "positivity", "range")],label=TRUE, size=3.4,label_round=2)
+
+
+```
+
+```{r final_tests}
+
+verifyDF["total"] <- apply(verifyDF[originalFeatureList],1,sum)
+
+verifyDF["positivity"] <- verifyDF["total"]/6
+
+verifyDF["max"] <- apply(verifyDF[originalFeatureList],1,max)
+verifyDF["min"] <- apply(verifyDF[originalFeatureList],1,min)
+verifyDF["range"] <- verifyDF["max"] - verifyDF["min"]
+
+verifyDFII <-verifyDF
+
+verifyDFII["understand"] <-verifyDFII["understand"]-verifyDFII["positivity"]
+verifyDFII["nonviolence"] <-verifyDFII["nonviolence"]-verifyDFII["positivity"]
+verifyDFII["learn.teach"] <-verifyDFII["learn.teach"]-verifyDFII["positivity"]
+verifyDFII["win.win"] <-verifyDFII["win.win"]-verifyDFII["positivity"]
+verifyDFII["mindfulness"] <-verifyDFII["mindfulness"]-verifyDFII["positivity"]
+verifyDFII["crowds"] <-verifyDFII["crowds"]-verifyDFII["positivity"]
+
+#test 1
+
+with(verifyDFII,
+     Kendall(positivity, understand))
+
+#test 2
+
+with(verifyDF,
+     Kendall(crowds, learn.teach))
+
+#test 3 & 4
+
+ggcorr(verifyDF[originalFeatureList],label=TRUE, size=3.4,label_round=2)
+
+
+```
